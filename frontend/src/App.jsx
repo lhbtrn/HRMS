@@ -23,7 +23,7 @@ import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import SalaryCalculator from "./pages/SalaryCalculator";
 import PersonalSalary from "./pages/PersonalSalary";
-
+import CandidateDetail from "./pages/CandidateDetail";
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -164,8 +164,17 @@ function App() {
             <Route
               path="/salary/personal"
               element={
-                <ProtectedRoute allowedRoles={["Employee", "Admin", "Manager"]}>
+                <ProtectedRoute allowedRoles={["Employee", "Manager"]}>
                   <PersonalSalary />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="recruitment/detail/:id"
+              element={
+                <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
+                  <CandidateDetail />{" "}
+                  {/* Component xem chi tiết hồ sơ và update trạng thái */}
                 </ProtectedRoute>
               }
             />

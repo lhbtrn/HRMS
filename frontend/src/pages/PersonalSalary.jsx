@@ -3,7 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const PersonalSalary = () => {
-  const { token } = useAuth(); // chỉ cần token
+  const { token } = useAuth();
   const [date, setDate] = useState("");
   const [salary, setSalary] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,6 @@ const PersonalSalary = () => {
 
     try {
       setLoading(true);
-
       const res = await api.get(`/salary/by-employee`, {
         params: { month, year },
         headers: { Authorization: `Bearer ${token}` },
@@ -35,13 +34,17 @@ const PersonalSalary = () => {
     }
   };
 
+  // Tính tổng thu nhập trực tiếp
+  const totalSalary =
+    (Number(salary?.LuongCoBan) || 0) +
+    (Number(salary?.Thuong) || 0) -
+    ((Number(salary?.KhauTru) || 0) + (Number(salary?.Phat) || 0));
+
   const salaryItems = [
-    { label: "Lương cơ bản", value: salary?.LuongCoBan },
-    { label: "Khấu trừ", value: salary?.KhauTru },
-    { label: "Thưởng", value: salary?.Thuong },
-    { label: "Bảo hiểm", value: salary?.BaoHiem },
-    { label: "Phạt", value: salary?.Phat },
-    { label: "Thuế", value: salary?.Thue },
+    { label: "Lương cơ bản", value: Number(salary?.LuongCoBan) || 0 },
+    { label: "Khấu trừ", value: Number(salary?.KhauTru) || 0 },
+    { label: "Thưởng", value: Number(salary?.Thuong) || 0 },
+    { label: "Phạt", value: Number(salary?.Phat) || 0 },
   ];
 
   return (
@@ -50,10 +53,10 @@ const PersonalSalary = () => {
       <div className="mb-8">
         {" "}
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Xem bảng lương cá nhân{" "}
+          Xem bảng lương cá nhân
         </h1>{" "}
         <p className="text-gray-600">
-          Xem thông tin lương cá nhân của bạn theo từng tháng{" "}
+          Xem thông tin lương cá nhân của bạn theo từng tháng
         </p>{" "}
       </div>
       <div className="card mb-8 p-6 bg-white rounded-lg shadow">
@@ -81,7 +84,7 @@ const PersonalSalary = () => {
         </div>
 
         {/* CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
           {salaryItems.map((item) => (
             <div
               key={item.label}
@@ -100,10 +103,7 @@ const PersonalSalary = () => {
           <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl shadow-md w-72">
             <p className="font-medium text-gray-700">Tổng thu nhập</p>
             <p className="text-3xl font-bold text-blue-700 mt-2">
-              {salary?.TongLuong != null
-                ? salary.TongLuong.toLocaleString()
-                : "--"}{" "}
-              đ
+              {totalSalary.toLocaleString()} đ
             </p>
           </div>
         </div>

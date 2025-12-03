@@ -62,7 +62,7 @@ const Sidebar = () => {
         {
           path: "/salary/personal",
           label: "Lương cá nhân",
-          roles: ["Employee", "Manager", "Admin"],
+          roles: ["Employee", "Manager"],
         },
       ],
     },
@@ -71,6 +71,13 @@ const Sidebar = () => {
       label: "Tuyển dụng",
       icon: Briefcase,
       roles: ["Admin", "Manager"],
+      children: [
+        {
+          path: "/recruitment/detail/:id", // Đây là route xem chi tiết hồ sơ
+          label: "Chi tiết hồ sơ",
+          roles: ["Admin", "Manager"],
+        },
+      ],
     },
     {
       path: "/reports",

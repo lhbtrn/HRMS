@@ -35,5 +35,10 @@ router.post(
 );
 
 router.get("/by-employee", auth, salaryController.getByEmployee);
-
+router.get(
+  "/reward-penalty",
+  auth,
+  checkRole("Manager", "Admin"),
+  salaryController.getRewardPenalty
+);
 module.exports = router;

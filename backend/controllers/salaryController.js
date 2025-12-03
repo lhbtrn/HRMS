@@ -91,7 +91,7 @@ exports.createSalary = async (req, res) => {
 // Lấy bảng lương theo nhân viên
 exports.getByEmployee = async (req, res) => {
   try {
-    const employeeId = req.user.id; // ID của user đang đăng nhập
+    const employeeId = req.query.employeeId || req.user.id; // sửa dòng này
     const month = parseInt(req.query.month);
     const year = parseInt(req.query.year);
 
@@ -111,7 +111,7 @@ exports.getByEmployee = async (req, res) => {
       });
     }
 
-    res.json({ data: rows[0] }); // Trả về data
+    res.json({ data: rows[0] });
   } catch (err) {
     console.error("Lỗi lấy lương theo nhân viên:", err);
     res.status(500).json({ error: "Lỗi server" });
@@ -121,10 +121,53 @@ exports.getByEmployee = async (req, res) => {
 // Lấy danh sách nhân viên
 exports.getAllEmployees = async (req, res) => {
   try {
-    const employees = await Employee.getAll(); // hoặc model phù hợp của bạn
+    const userRole = req.user.role; // role của user hiện tại ('Manager' hoặc 'Admin')
+    const userPhongBanId = req.user.PhongBanID; // phòng ban của user
+
+    let employees = await Employee.getAll(); // lấy tất cả nhân viên trước
+
+    if (userRole === "Manager") {
+      // Manager chỉ xem nhân viên cùng phòng
+      employees = employees.filter((emp) => emp.PhongBanID === userPhongBanId);
+    }
+
     res.json(employees);
-  } catch (error) {
-    console.error("Get all employees error:", error);
+  } catch (err) {
+    console.error("Get all employees error:", err);
     res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+// Lấy thưởng + phạt theo nhân viên & tháng/năm
+exports.getRewardPenalty = async (req, res) => {
+  try {
+    const { employeeId, month, year } = req.query;
+
+    if (!employeeId || !month || !year) {
+      return res.status(400).json({ message: "Thiếu dữ liệu truy vấn!" });
+    }
+
+    const [rows] = await db.query(
+      `
+      SELECT 
+        SUM(CASE WHEN Loai = 'Thuong' THEN SoTien ELSE 0 END) AS Thuong,
+        SUM(CASE WHEN Loai = 'Phat' THEN SoTien ELSE 0 END) AS Phat
+      FROM ThuongPhat
+      WHERE NhanVienID = ?
+        AND MONTH(Ngay) = ?
+        AND YEAR(Ngay) = ?
+      `,
+      [employeeId, month, year]
+    );
+
+    return res.json({
+      data: {
+        Thuong: rows[0].Thuong || 0,
+        Phat: rows[0].Phat || 0,
+      },
+    });
+  } catch (err) {
+    console.error("Lỗi lấy thưởng/phạt:", err);
+    return res.status(500).json({ message: "Lỗi server" });
   }
 };
