@@ -157,7 +157,7 @@ function App() {
             <Route
               path="/salary/calculator"
               element={
-                <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
+                <ProtectedRoute allowedRoles={["Admin"]}>
                   <SalaryCalculator />
                 </ProtectedRoute>
               }

@@ -8,6 +8,9 @@ const PersonalSalary = () => {
   const [salary, setSalary] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const userData = JSON.parse(localStorage.getItem("user"));
+  const employeeId = userData?.maNhanVien;
+
   const handleFetchSalary = async () => {
     if (!date) return alert("Vui lòng chọn tháng!");
     const [year, month] = date.split("-");
@@ -15,7 +18,8 @@ const PersonalSalary = () => {
     try {
       setLoading(true);
       const res = await api.get(`/salary/by-employee`, {
-        params: { month, year },
+        params: { month, year, employeeId },
+
         headers: { Authorization: `Bearer ${token}` },
       });
 

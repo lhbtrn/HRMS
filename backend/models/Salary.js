@@ -34,12 +34,14 @@ class Salary {
     return rows;
   }
 
+  // Lấy bảng lương theo filter (tháng/năm/phòng ban)
   static async getSalariesByFilter({ month, year, departmentId }) {
     let sql = `
-      SELECT bl.*, nv.HoTen, pb.TenPhongBan
+      SELECT bl.*, nv.HoTen, pb.TenPhongBan, cv.TenChucVu
       FROM BangLuong bl
       JOIN NhanVien nv ON bl.NhanVienID = nv.MaNhanVien
       LEFT JOIN PhongBan pb ON nv.PhongBanID = pb.MaPhongBan
+      LEFT JOIN ChucVu cv ON nv.ChucVuID = cv.MaChucVu
       WHERE bl.Thang = ? AND bl.Nam = ?
     `;
     const params = [month, year];
@@ -50,6 +52,7 @@ class Salary {
     }
 
     const [rows] = await db.execute(sql, params);
+
     return rows.map((s) => ({
       ...s,
       LuongCoBan: s.LuongCoBan || 0,
@@ -61,6 +64,38 @@ class Salary {
         (s.Thuong || 0) -
         (+(s.KhauTru || 0) + (s.Phat || 0)),
     }));
+  }
+
+  // Lấy bảng lương theo nhân viên
+  static async getByEmployee(employeeId, month, year) {
+    const [rows] = await db.execute(
+      `SELECT bl.*, nv.HoTen, nv.PhongBanID, pb.TenPhongBan, cv.TenChucVu
+       FROM BangLuong bl
+       JOIN NhanVien nv ON bl.NhanVienID = nv.MaNhanVien
+       LEFT JOIN PhongBan pb ON nv.PhongBanID = pb.MaPhongBan
+       LEFT JOIN ChucVu cv ON nv.ChucVuID = cv.MaChucVu
+       WHERE bl.NhanVienID = ? AND bl.Thang = ? AND bl.Nam = ?`,
+      [employeeId, month, year]
+    );
+
+    if (rows.length === 0) return null;
+
+    const s = rows[0];
+
+    return {
+      MaBangLuong: s.MaBangLuong,
+      NhanVienID: s.NhanVienID,
+      HoTen: s.HoTen,
+      TenPhongBan: s.TenPhongBan || "",
+      TenChucVu: s.TenChucVu || "",
+      Thang: s.Thang,
+      Nam: s.Nam,
+      LuongCoBan: s.LuongCoBan || 0,
+      Thuong: s.Thuong || 0,
+      Phat: s.Phat || 0,
+      KhauTru: s.KhauTru || 0,
+      TongThuNhap: s.TongThuNhap || 0,
+    };
   }
 }
 

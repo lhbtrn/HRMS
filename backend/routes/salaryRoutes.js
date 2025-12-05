@@ -29,7 +29,7 @@ router.get(
 );
 
 // ---------- Lấy bảng lương theo nhân viên ----------
-router.get("/by-employee", auth, salaryController.getByEmployee);
+router.get("/by-employee", salaryController.getByEmployee);
 
 // ---------- Lấy thưởng/phạt theo nhân viên ----------
 router.get(

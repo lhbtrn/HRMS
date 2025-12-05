@@ -44,6 +44,8 @@ exports.getSalariesByFilter = async (req, res) => {
       Thuong: s.Thuong || 0,
       Phat: s.Phat || 0,
       KhauTru: s.KhauTru || 0,
+      BaoHiem: s.BaoHiem || 0,
+      Thue: s.Thue || 0,
       TongThuNhap: s.TongThuNhap || 0,
     }));
 
@@ -66,78 +68,61 @@ exports.createSalary = async (req, res) => {
       Nam,
     } = req.body;
 
+    // Kiểm tra dữ liệu bắt buộc
     if (!NhanVienID || !LuongCoBan || !Thang || !Nam) {
       return res
         .status(400)
         .json({ message: "Vui lòng nhập đầy đủ thông tin" });
     }
 
-    // 1️⃣ Lấy thông tin nhân viên từ bảng NhanVien
-    const [empRows] = await db.execute(
-      `SELECT * FROM NhanVien WHERE MaNhanVien = ?`,
-      [NhanVienID]
-    );
-    const emp = empRows[0];
-
-    if (!emp) {
-      return res.status(404).json({ message: "Nhân viên không tồn tại" });
-    }
-
-    // 2️⃣ Kiểm tra role Manager và phòng ban
-    if (req.user.role === "Manager") {
-      if (emp.PhongBanID !== req.user.PhongBanID) {
-        return res.status(403).json({
-          message:
-            "Bạn không có quyền thao tác bảng lương của nhân viên phòng khác",
-        });
-      }
-    }
-
-    // 3️⃣ Tính tổng thu nhập và khấu trừ
+    // Tính tổng thu nhập
     const TongThuNhap = Number(LuongCoBan) + Number(Thuong) - Number(Phat);
+    // Khấu trừ = Lương cơ bản - Phạt
     const KhauTru = Number(LuongCoBan) - Number(Phat);
 
-    // 4️⃣ Kiểm tra bảng lương đã tồn tại chưa
+    // Kiểm tra xem bảng lương tháng/năm đã có chưa
     const [existing] = await db.execute(
       `SELECT * FROM BangLuong WHERE NhanVienID = ? AND Thang = ? AND Nam = ?`,
       [NhanVienID, Thang, Nam]
     );
 
     if (existing.length > 0) {
-      // Update bảng lương
+      // Nếu đã có → update dữ liệu
       await db.execute(
-        `UPDATE BangLuong
+        `UPDATE BangLuong 
          SET LuongCoBan = ?, Thuong = ?, Phat = ?, KhauTru = ?, TongThuNhap = ?
          WHERE NhanVienID = ? AND Thang = ? AND Nam = ?`,
         [LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap, NhanVienID, Thang, Nam]
       );
+
       return res
         .status(200)
         .json({ message: "Cập nhật bảng lương thành công" });
     }
 
-    // Insert bảng lương mới
+    // Nếu chưa có → insert dữ liệu mới
     const [result] = await db.execute(
-      `INSERT INTO BangLuong
-       (NhanVienID, Thang, Nam, LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO BangLuong 
+      (NhanVienID, Thang, Nam, LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [NhanVienID, Thang, Nam, LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap]
     );
 
-    res
-      .status(201)
-      .json({ message: "Lưu bảng lương thành công", id: result.insertId });
+    res.status(201).json({
+      message: "Lưu bảng lương thành công",
+      id: result.insertId,
+    });
   } catch (err) {
     console.error("Lỗi khi lưu bảng lương:", err);
-    res.status(500).json({ message: "Lỗi server" });
+    res.status(500).json({ message: "Lỗi server khi tạo bảng lương" });
   }
 };
-//1
 
 // Lấy bảng lương theo nhân viên
 exports.getByEmployee = async (req, res) => {
   try {
-    const employeeId = req.query.employeeId || req.user.id; // sửa dòng này
+    const employeeId = req.query.employeeId || req.user.maNhanVien;
+
     const month = parseInt(req.query.month);
     const year = parseInt(req.query.year);
 
@@ -167,11 +152,10 @@ exports.getByEmployee = async (req, res) => {
 // Lấy danh sách nhân viên
 exports.getAllEmployees = async (req, res) => {
   try {
-    const userRole = req.user.role; // 'Manager' hoặc 'Admin'
-    const userPhongBanId = req.user.PhongBanID;
+    const userRole = req.user.vaiTro;
+    const userPhongBanId = req.user.phongBanId;
 
-    let employees = await Employee.getAll(); // lấy tất cả nhân viên
-
+    let employees = await Employee.getAll();
     if (userRole === "Manager") {
       // Manager chỉ xem nhân viên cùng phòng
       employees = employees.filter((emp) => emp.PhongBanID === userPhongBanId);
@@ -183,7 +167,6 @@ exports.getAllEmployees = async (req, res) => {
     res.status(500).json({ message: "Lỗi server" });
   }
 };
-//1
 
 // Lấy thưởng + phạt theo nhân viên & tháng/năm
 exports.getRewardPenalty = async (req, res) => {
@@ -216,5 +199,24 @@ exports.getRewardPenalty = async (req, res) => {
   } catch (err) {
     console.error("Lỗi lấy thưởng/phạt:", err);
     return res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+// Lấy lương cá nhân theo ID nhân viên và tháng/năm
+exports.getSalaryByEmployee = async (req, res) => {
+  try {
+    const { month, year, employeeId } = req.query;
+
+    if (!employeeId)
+      return res.status(400).json({ message: "Thiếu mã nhân viên" });
+
+    const salary = await Salary.findByEmployeeAndMonth(employeeId, month, year);
+
+    if (!salary) return res.json({ message: "Không có dữ liệu!" });
+
+    res.json({ data: salary });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server" });
   }
 };
