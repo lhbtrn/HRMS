@@ -19,7 +19,7 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
 
   const token = localStorage.getItem("token");
 
-  // ---------- Fetch Thưởng/Phạt ----------
+  // Fetch Thưởng/Phạt
   const fetchRewardPenalty = async (empId) => {
     try {
       const res = await api.get("/salary/reward-penalty", {
@@ -33,7 +33,7 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
     }
   };
 
-  // ---------- Fetch Phòng ban ----------
+  // Fetch Phòng ban
   const fetchDepartments = async () => {
     try {
       const res = await api.get("/salary/data/departments", {
@@ -45,19 +45,24 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
     }
   };
 
-  // ---------- Fetch Nhân viên ----------
+  // Fetch Nhân viên
   const fetchEmployees = async () => {
     try {
       const res = await api.get("/salary/", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setEmployees(res.data || []);
+      let emps = res.data || [];
+      // Manager chỉ thấy nhân viên cùng phòng
+      if (userRole === "Manager" && userPhongBanId) {
+        emps = emps.filter((emp) => emp.PhongBanID == userPhongBanId);
+      }
+      setEmployees(emps);
     } catch (err) {
       console.error("Lỗi lấy nhân viên:", err);
     }
   };
 
-  // ---------- Fetch Lương theo nhân viên ----------
+  // Fetch lương theo nhân viên
   const fetchSalaryByEmployee = async (empId) => {
     try {
       const res = await api.get("/salary/by-employee", {
@@ -71,7 +76,7 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
     }
   };
 
-  // ---------- Load lần đầu ----------
+  // Load lần đầu
   useEffect(() => {
     const loadData = async () => {
       await fetchDepartments();
@@ -81,7 +86,7 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
     loadData();
   }, []);
 
-  // ---------- Khi chọn nhân viên ----------
+  // Khi chọn nhân viên
   useEffect(() => {
     if (!selectedEmployee) {
       setLuongCoBan(0);
@@ -100,18 +105,14 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
       const emp = employees.find(
         (e) => Number(e.MaNhanVien) === Number(selectedEmployee)
       );
-
       setSelectedDept(emp?.PhongBanID || "");
 
-      // Lương cơ bản: ưu tiên bảng Lương → nếu chưa có thì lấy từ nhân viên
       const baseSalary = Number(salary?.LuongCoBan ?? emp?.LuongCoBan ?? 0);
       setLuongCoBan(baseSalary);
 
-      // Thưởng / Phạt lấy từ DB
       setThuong(Number(rewardPenalty.Thuong ?? 0));
       setPhat(Number(rewardPenalty.Phat ?? 0));
 
-      // Khấu trừ = Lương cơ bản - Phạt (Phương án B)
       const calculatedKhauTru = baseSalary - (rewardPenalty.Phat ?? 0);
       setKhauTru(calculatedKhauTru >= 0 ? calculatedKhauTru : 0);
     };
@@ -119,15 +120,19 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
     loadSalary();
   }, [selectedEmployee, month, year, employees]);
 
-  // ---------- Tính tổng lương ----------
+  // Tính tổng lương
   useEffect(() => {
     const total = Number(luongCoBan) + Number(thuong) - Number(phat);
     setTongLuong(total >= 0 ? total : 0);
   }, [luongCoBan, thuong, phat]);
 
-  // ---------- Lưu bảng lương ----------
+  // Lưu bảng lương
   const handleSave = async () => {
     if (!selectedEmployee) return alert("Vui lòng chọn nhân viên");
+
+    const emp = employees.find((e) => e.MaNhanVien == selectedEmployee);
+
+    if (!emp) return alert("Nhân viên không tồn tại hoặc bạn không có quyền");
 
     const payload = {
       NhanVienID: selectedEmployee,
@@ -150,12 +155,6 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
   };
 
   if (loading) return <div>Đang tải dữ liệu...</div>;
-
-  // Manager chỉ xem nhân viên phòng mình
-  const visibleEmployees =
-    userRole === "Manager" && userPhongBanId
-      ? employees.filter((e) => e.PhongBanID == userPhongBanId)
-      : employees;
 
   return (
     <div className="min-h-screen p-6 bg-gray-100">
@@ -200,7 +199,7 @@ const SalaryCalculator = ({ userRole = "Admin", userPhongBanId = null }) => {
           className="w-full px-3 py-2 border rounded-md bg-gray-50 mb-4"
         >
           <option value="">-- Chọn nhân viên --</option>
-          {visibleEmployees.map((emp) => (
+          {employees.map((emp) => (
             <option key={emp.MaNhanVien} value={emp.MaNhanVien}>
               {emp.HoTen} — {emp.TenPhongBan}
             </option>

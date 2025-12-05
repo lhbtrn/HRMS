@@ -56,12 +56,10 @@ class Salary {
       Thuong: s.Thuong || 0,
       Phat: s.Phat || 0,
       KhauTru: s.KhauTru || 0,
-      BaoHiem: s.BaoHiem || 0,
-      Thue: s.Thue || 0,
       TongThuNhap:
         (s.LuongCoBan || 0) +
         (s.Thuong || 0) -
-        ((s.BaoHiem || 0) + (s.KhauTru || 0) + (s.Phat || 0) + (s.Thue || 0)),
+        (+(s.KhauTru || 0) + (s.Phat || 0)),
     }));
   }
 }

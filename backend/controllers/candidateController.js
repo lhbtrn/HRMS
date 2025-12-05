@@ -1,65 +1,174 @@
-const Candidate = require("../models/Candidate");
-const Note = require("../models/Note");
-const nodemailer = require("nodemailer");
+const pool = require("../config/database");
+const sendEmail = require("../utils/sendEmail");
 
+// ====== LẤY DANH SÁCH ỨNG VIÊN ======
+exports.getAllCandidates = async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT 
+        h.MaHoSo AS MaCandidate,
+        h.HoTen,
+        h.Email AS EmailNguoiDung,
+        h.SoDienThoai,
+        h.NgayNop,
+        h.TrangThai,
+        h.DuongDanCV,
+        t.ViTri AS ViTriUngTuyen
+      FROM HoSoUngVien h
+      JOIN TinTuyenDung t ON h.TinTuyenDungID = t.MaTin
+      ORDER BY h.NgayNop DESC
+    `);
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server khi lấy danh sách ứng viên" });
+  }
+};
+
+// ====== LẤY CHI TIẾT ỨNG VIÊN ======
 exports.getCandidateDetail = async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
-    if (!candidate)
-      return res.status(404).json({ message: "Hồ sơ không tồn tại" });
+    const [rows] = await pool.execute(
+      `SELECT 
+         h.MaHoSo AS MaCandidate,
+         h.HoTen,
+         h.Email AS EmailNguoiDung,
+         h.SoDienThoai,
+         h.NgayNop,
+         h.TrangThai,
+         h.DuongDanCV,
+         t.ViTri AS ViTriUngTuyen
+       FROM HoSoUngVien h
+       JOIN TinTuyenDung t ON h.TinTuyenDungID = t.MaTin
+       WHERE h.MaHoSo = ?`,
+      [req.params.id]
+    );
 
-    const notes = await Note.getByCandidateId(req.params.id);
-    candidate.notes = notes;
-    res.json(candidate);
+    if (rows.length === 0)
+      return res.status(404).json({ message: "Không tìm thấy ứng viên" });
+
+    res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server khi lấy chi tiết ứng viên" });
   }
 };
 
-exports.updateCandidateStatus = async (req, res) => {
+// ====== CẬP NHẬT TRẠNG THÁI + GHI CHÚ + GỬI EMAIL ======
+exports.updateStatus = async (req, res) => {
+  const { newStatus, note } = req.body;
+  const user = req.user; // auth middleware phải gắn req.user
+  console.log("req.user:", req.user);
+
+  if (!user || !user.id) {
+    // sửa từ MaNguoiDung → id
+    return res.status(401).json({ message: "Người dùng chưa xác thực" });
+  }
+
   try {
-    const { newStatus, note } = req.body;
-    const candidate = await Candidate.findById(req.params.id);
-    if (!candidate)
-      return res.status(404).json({ message: "Hồ sơ không tồn tại" });
+    // Lấy thông tin ứng viên
+    const [cRows] = await pool.execute(
+      `SELECT 
+         h.MaHoSo,
+         h.Email,
+         h.TrangThai,
+         t.ViTri AS ViTriUngTuyen
+       FROM HoSoUngVien h
+       JOIN TinTuyenDung t ON h.TinTuyenDungID = t.MaTin
+       WHERE h.MaHoSo = ?`,
+      [req.params.id]
+    );
 
-    if (newStatus && newStatus !== candidate.TrangThai) {
-      await Candidate.updateStatus(req.params.id, newStatus);
-      if (note) await Note.create(req.params.id, req.user.id, note);
-
-      sendStatusEmail(candidate.EmailNguoiDung, candidate.ViTri, newStatus);
-      return res.json({ message: "Cập nhật trạng thái và ghi chú thành công" });
+    if (cRows.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy hồ sơ" });
     }
 
-    res.status(400).json({ message: "Trạng thái không thay đổi" });
+    const candidate = cRows[0];
+    let updated = false;
+
+    // Cập nhật trạng thái nếu khác trạng thái cũ
+    if (newStatus && newStatus !== candidate.TrangThai) {
+      await pool.execute(
+        `UPDATE HoSoUngVien SET TrangThai = ? WHERE MaHoSo = ?`,
+        [newStatus, req.params.id]
+      );
+      updated = true;
+    }
+
+    // Thêm ghi chú nếu có
+    if (note && note.trim() !== "") {
+      await pool.execute(
+        `INSERT INTO GhiChuUngVien (HoSoUngVienID, NguoiCapNhatID, NoiDung)
+         VALUES (?, ?, ?)`,
+        [req.params.id, user.id, note.trim()] // dùng user.id
+      );
+      updated = true;
+    }
+
+    // Gửi email nếu trạng thái thay đổi
+    if (newStatus && newStatus !== candidate.TrangThai) {
+      let emailBody = "";
+      if (newStatus === "PhongVan")
+        emailBody = "Chúc mừng! Hồ sơ của bạn đã được chọn để phỏng vấn.";
+      else if (newStatus === "DaTuyen")
+        emailBody = `Chúc mừng! Bạn đã được tuyển dụng cho vị trí ${candidate.ViTriUngTuyen}.`;
+      else if (newStatus === "TuChoi")
+        emailBody = `Cảm ơn bạn đã quan tâm đến vị trí ${candidate.ViTriUngTuyen}.`;
+
+      if (emailBody) {
+        await sendEmail(
+          candidate.Email,
+          "Cập nhật trạng thái hồ sơ",
+          emailBody
+        );
+      }
+    }
+
+    if (!updated) {
+      return res.json({ message: "Không có thay đổi nào được thực hiện" });
+    }
+
+    res.json({ message: "Cập nhật thành công" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Lỗi server khi cập nhật trạng thái/ghi chú" });
   }
 };
 
-function sendStatusEmail(email, position, status) {
-  let subject = "",
-    text = "";
-  if (status === "Phỏng vấn") {
-    subject = "Thông báo phỏng vấn";
-    text = `Chúc mừng! Hồ sơ của bạn đã được chọn để tham gia phỏng vấn. Chúng tôi sẽ liên hệ với bạn sớm.`;
-  } else if (status === "Đã tuyển") {
-    subject = "Bạn đã được tuyển dụng";
-    text = `Bạn đã được tuyển dụng cho vị trí ${position}. Vui lòng liên hệ HR để hoàn tất thủ tục.`;
-  } else if (status === "Từ chối") {
-    subject = "Kết quả tuyển dụng";
-    text = `Rất tiếc, bạn chưa được tuyển dụng cho vị trí ${position}.`;
+// ====== GỬI EMAIL TÙY CHỈNH ======
+exports.sendEmail = async (req, res) => {
+  try {
+    const { to, subject, content } = req.body;
+    await sendEmail(to, subject, content);
+    res.json({ message: "Email đã được gửi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server khi gửi email" });
   }
+};
 
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-  });
+// ====== LẤY GHI CHÚ ỨNG VIÊN ======
+exports.getNotes = async (req, res) => {
+  try {
+    const maHoSo = req.params.id;
 
-  transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject,
-    text,
-  });
-}
+    const [notes] = await pool.execute(
+      `SELECT 
+         NoiDung,
+         ThoiGian
+       FROM GhiChuUngVien
+       WHERE HoSoUngVienID = ?
+       ORDER BY ThoiGian DESC`,
+      [maHoSo]
+    );
+
+    res.json(notes);
+  } catch (error) {
+    console.error("Lỗi getNotes:", error);
+    res.status(500).json({ message: "Lỗi server khi lấy ghi chú" });
+  }
+};
+//1

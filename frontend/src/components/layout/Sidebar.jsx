@@ -70,12 +70,12 @@ const Sidebar = () => {
       path: "/recruitment",
       label: "Tuyển dụng",
       icon: Briefcase,
-      roles: ["Admin", "Manager"],
+      roles: ["Admin"],
       children: [
         {
-          path: "/recruitment/detail/:id", // Đây là route xem chi tiết hồ sơ
-          label: "Chi tiết hồ sơ",
-          roles: ["Admin", "Manager"],
+          path: "/recruitment", // Danh sách ứng viên
+          label: "Danh sách ứng viên",
+          roles: ["Admin"],
         },
       ],
     },

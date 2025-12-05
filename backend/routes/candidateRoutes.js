@@ -1,22 +1,35 @@
 const express = require("express");
 const router = express.Router();
 const candidateController = require("../controllers/candidateController");
-const { auth, authorize } = require("../middleware/auth");
+const { auth, checkRole } = require("../middleware/auth");
+const pool = require("../config/database");
 
-// Xem chi tiết hồ sơ
-router.get(
-  "/:id",
-  auth,
-  authorize(["Manager", "Admin"]),
-  candidateController.getCandidateDetail
-);
+// Lấy danh sách ứng viên
+router.get("/", candidateController.getAllCandidates);
 
-// Cập nhật trạng thái + ghi chú
+// Xem chi tiết
+router.get("/:id", auth, candidateController.getCandidateDetail);
+
+// Cập nhật trạng thái
 router.put(
   "/:id/status",
   auth,
-  authorize(["Manager", "Admin"]),
-  candidateController.updateCandidateStatus
+  checkRole("Admin", "Manager"),
+  candidateController.updateStatus
+);
+
+// Gửi email tùy chỉnh
+router.post(
+  "/:id/send-email",
+  auth,
+  checkRole("Admin", "Manager"),
+  candidateController.sendEmail
+);
+router.get(
+  "/:id/notes",
+  auth,
+  checkRole("Manager", "Admin"),
+  candidateController.getNotes
 );
 
 module.exports = router;

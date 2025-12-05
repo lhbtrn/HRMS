@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import SalaryCalculator from "./pages/SalaryCalculator";
 import PersonalSalary from "./pages/PersonalSalary";
+import CandidateList from "./pages/CandidateList";
 import CandidateDetail from "./pages/CandidateDetail";
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -169,12 +170,21 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+            <Route
+              path="recruitment"
+              element={
+                <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
+                  <CandidateList />
+                </ProtectedRoute>
+              }
+            />
+
             <Route
               path="recruitment/detail/:id"
               element={
-                <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
-                  <CandidateDetail />{" "}
-                  {/* Component xem chi tiết hồ sơ và update trạng thái */}
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <CandidateDetail />
                 </ProtectedRoute>
               }
             />
@@ -206,16 +216,6 @@ function App() {
                 <div className="p-8">
                   <h1 className="text-2xl font-bold">
                     Nghỉ phép - Đang phát triển
-                  </h1>
-                </div>
-              }
-            />
-            <Route
-              path="recruitment"
-              element={
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold">
-                    Tuyển dụng - Đang phát triển
                   </h1>
                 </div>
               }

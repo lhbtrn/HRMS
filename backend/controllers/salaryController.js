@@ -44,8 +44,6 @@ exports.getSalariesByFilter = async (req, res) => {
       Thuong: s.Thuong || 0,
       Phat: s.Phat || 0,
       KhauTru: s.KhauTru || 0,
-      BaoHiem: s.BaoHiem || 0,
-      Thue: s.Thue || 0,
       TongThuNhap: s.TongThuNhap || 0,
     }));
 
@@ -56,37 +54,85 @@ exports.getSalariesByFilter = async (req, res) => {
   }
 };
 
-// Tạo bảng lương
+// Tạo hoặc cập nhật bảng lương
 exports.createSalary = async (req, res) => {
   try {
     const {
       NhanVienID,
       LuongCoBan,
-      Thuong,
-      Phat,
-      KhauTru,
-      BaoHiem,
-      Thue,
+      Thuong = 0,
+      Phat = 0,
       Thang,
       Nam,
     } = req.body;
 
-    const [result] = await db.query(
-      `INSERT INTO BangLuong 
-      (NhanVienID, LuongCoBan, Thuong, Phat, KhauTru, BaoHiem, Thue, Thang, Nam)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [NhanVienID, LuongCoBan, Thuong, Phat, KhauTru, BaoHiem, Thue, Thang, Nam]
+    if (!NhanVienID || !LuongCoBan || !Thang || !Nam) {
+      return res
+        .status(400)
+        .json({ message: "Vui lòng nhập đầy đủ thông tin" });
+    }
+
+    // 1️⃣ Lấy thông tin nhân viên từ bảng NhanVien
+    const [empRows] = await db.execute(
+      `SELECT * FROM NhanVien WHERE MaNhanVien = ?`,
+      [NhanVienID]
+    );
+    const emp = empRows[0];
+
+    if (!emp) {
+      return res.status(404).json({ message: "Nhân viên không tồn tại" });
+    }
+
+    // 2️⃣ Kiểm tra role Manager và phòng ban
+    if (req.user.role === "Manager") {
+      if (emp.PhongBanID !== req.user.PhongBanID) {
+        return res.status(403).json({
+          message:
+            "Bạn không có quyền thao tác bảng lương của nhân viên phòng khác",
+        });
+      }
+    }
+
+    // 3️⃣ Tính tổng thu nhập và khấu trừ
+    const TongThuNhap = Number(LuongCoBan) + Number(Thuong) - Number(Phat);
+    const KhauTru = Number(LuongCoBan) - Number(Phat);
+
+    // 4️⃣ Kiểm tra bảng lương đã tồn tại chưa
+    const [existing] = await db.execute(
+      `SELECT * FROM BangLuong WHERE NhanVienID = ? AND Thang = ? AND Nam = ?`,
+      [NhanVienID, Thang, Nam]
     );
 
-    res.status(201).json({
-      message: "Lưu bảng lương thành công",
-      id: result.insertId,
-    });
+    if (existing.length > 0) {
+      // Update bảng lương
+      await db.execute(
+        `UPDATE BangLuong
+         SET LuongCoBan = ?, Thuong = ?, Phat = ?, KhauTru = ?, TongThuNhap = ?
+         WHERE NhanVienID = ? AND Thang = ? AND Nam = ?`,
+        [LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap, NhanVienID, Thang, Nam]
+      );
+      return res
+        .status(200)
+        .json({ message: "Cập nhật bảng lương thành công" });
+    }
+
+    // Insert bảng lương mới
+    const [result] = await db.execute(
+      `INSERT INTO BangLuong
+       (NhanVienID, Thang, Nam, LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [NhanVienID, Thang, Nam, LuongCoBan, Thuong, Phat, KhauTru, TongThuNhap]
+    );
+
+    res
+      .status(201)
+      .json({ message: "Lưu bảng lương thành công", id: result.insertId });
   } catch (err) {
     console.error("Lỗi khi lưu bảng lương:", err);
-    res.status(500).json({ message: "Lỗi khi lưu bảng lương" });
+    res.status(500).json({ message: "Lỗi server" });
   }
 };
+//1
 
 // Lấy bảng lương theo nhân viên
 exports.getByEmployee = async (req, res) => {
@@ -121,10 +167,10 @@ exports.getByEmployee = async (req, res) => {
 // Lấy danh sách nhân viên
 exports.getAllEmployees = async (req, res) => {
   try {
-    const userRole = req.user.role; // role của user hiện tại ('Manager' hoặc 'Admin')
-    const userPhongBanId = req.user.PhongBanID; // phòng ban của user
+    const userRole = req.user.role; // 'Manager' hoặc 'Admin'
+    const userPhongBanId = req.user.PhongBanID;
 
-    let employees = await Employee.getAll(); // lấy tất cả nhân viên trước
+    let employees = await Employee.getAll(); // lấy tất cả nhân viên
 
     if (userRole === "Manager") {
       // Manager chỉ xem nhân viên cùng phòng
@@ -137,6 +183,7 @@ exports.getAllEmployees = async (req, res) => {
     res.status(500).json({ message: "Lỗi server" });
   }
 };
+//1
 
 // Lấy thưởng + phạt theo nhân viên & tháng/năm
 exports.getRewardPenalty = async (req, res) => {
