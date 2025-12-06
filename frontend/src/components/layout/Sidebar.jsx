@@ -57,7 +57,7 @@ const Sidebar = () => {
         {
           path: "/salary/calculator",
           label: "Tính lương",
-          roles: ["Admin"],
+          roles: ["Admin", "Manager"],
         },
         {
           path: "/salary/personal",
